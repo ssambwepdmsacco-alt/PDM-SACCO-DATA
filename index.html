@@ -128,18 +128,24 @@ function init(){enforceFundedRules();loadSettingsUI();document.getElementById('c
 </script><div id="profileModal" class="profile-modal"><div class="profile-card"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><h2 id="profileTitle" style="margin:0">Member Profile</h2><button class="secondary" onclick="closeProfile()">CLOSE</button></div><div id="profileBody" style="margin-top:15px"></div></div></div>
 <div id="completeModal" class="profile-modal"><div class="profile-card" style="max-width:620px"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Complete Missing Member Information</h2><button class="secondary" onclick="closeCompleteInfo()">CLOSE</button></div><p class="small">Data Entry users may fill only missing NIN and Wendi Account Number. Existing values cannot be overwritten.</p><div class="grid"><div><label>NAME</label><input id="ciName" readonly></div><div><label>NIN</label><input id="ciNin" placeholder="Enter NIN"></div><div><label>WENDI A/C NO.</label><input id="ciWendi" placeholder="Enter Wendi account number"></div></div><div style="margin-top:14px"><button class="action" onclick="saveCompleteInfo()">SAVE MISSING INFORMATION</button></div></div></div>
 <div id="photoInputWrap" style="display:none"><input id="memberPhotoInput" type="file" accept="image/*"></div>
-<div id="cloudAuth" style="position:fixed;inset:0;background:#f4f7f5;z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif"><div style="width:min(430px,92vw);background:#fff;border-radius:16px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.15)"><h2 style="margin-top:0">SSAMBWE NDEJJE TOWNCOUNCIL - PDM SACCO</h2><p id="authMsg">Sign in to the cloud system.</p><input id="authEmail" type="email" placeholder="Email" value="ssambwepdmsacco@gmail.com" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0"><input id="authPassword" type="password" placeholder="Password" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0"><input id="authName" type="text" placeholder="Full name (new supervisor account)" value="Joseph Tomusange Kaliba" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0"><div style="display:flex;gap:8px;margin-top:10px"><button onclick="cloudSignIn()" style="flex:1;padding:12px">SIGN IN</button><button onclick="cloudSignUp()" style="flex:1;padding:12px">CREATE ACCOUNT</button></div></div></div><div id="cloudBar" style="display:none;background:#123c2a;color:#fff;padding:8px 12px;position:sticky;top:0;z-index:99998;font:14px Arial"><span id="cloudUser"></span><span style="float:right"><button id="userAdminBtn" onclick="cloudAddUser()" style="display:none">USER MANAGEMENT</button> <button id="auditBtn" onclick="cloudAudit()" style="display:none">AUDIT TRAIL</button> <button onclick="cloudSignOut()">SIGN OUT</button></span></div><div id="auditPanel" style="display:none;position:fixed;inset:8%;background:#fff;z-index:100000;overflow:auto;padding:20px;box-shadow:0 10px 50px #0005"><button onclick="closeAudit()">CLOSE</button><h2>Audit Trail</h2><div id="auditList"></div></div><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
+<div id="cloudAuth" style="position:fixed;inset:0;background:#f4f7f5;z-index:999999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif"><div style="width:min(430px,92vw);background:#fff;border-radius:16px;padding:28px;box-shadow:0 12px 40px rgba(0,0,0,.15)"><h2 style="margin-top:0">SSAMBWE NDEJJE TOWNCOUNCIL - PDM SACCO</h2><p id="authMsg">Sign in to the cloud system.</p><input id="authEmail" type="email" placeholder="Email" value="ssambwepdmsacco@gmail.com" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0"><input id="authPassword" type="password" placeholder="Password" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0"><input id="authName" type="text" placeholder="Full name (new supervisor account)" value="Joseph Tomusange Kaliba" style="width:100%;box-sizing:border-box;padding:12px;margin:6px 0"><div style="display:flex;gap:8px;margin-top:10px"><button onclick="cloudSignIn()" style="flex:1;padding:12px">SIGN IN</button><button onclick="cloudSignUp()" style="flex:1;padding:12px">CREATE ACCOUNT</button></div></div></div><div id="cloudBar" style="display:none;background:#123c2a;color:#fff;padding:8px 12px;position:sticky;top:0;z-index:99998;font:14px Arial"><span id="cloudUser"></span><span style="float:right"><button id="userAdminBtn" onclick="cloudAddUser()" style="display:none">USER MANAGEMENT</button> <button id="auditBtn" onclick="cloudAudit()" style="display:none">AUDIT TRAIL</button> <button onclick="cloudSignOut()">SIGN OUT</button></span></div><div id="auditPanel" style="display:none;position:fixed;inset:8%;background:#fff;z-index:100000;overflow:auto;padding:20px;box-shadow:0 10px 50px #0005"><button onclick="closeAudit()">CLOSE</button><h2>Audit Trail</h2><div id="auditList"></div></div><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="https://unpkg.com/@supabase/supabase-js@2"></script><script>
 const SUPABASE_URL='https://csxjgnnfppnnsrosbysa.supabase.co';
 const SUPABASE_KEY='sb_publishable_onERGdzUBih2kOJ99BCPVA_6AsHnkI9';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const sb=(window.supabase&&typeof window.supabase.createClient==='function')?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
 let cloudUser=null, cloudProfile=null, cloudBusy=false;
+function ensureSupabase(){if(!sb){authMsg('Login service did not load. Please refresh the page. If it still fails, check your internet connection.');return false;}return true;}
 function authMsg(m){const e=document.getElementById('authMsg');if(e)e.textContent=m;}
 function role(){return cloudProfile?.role||'VIEWER';}function roleName(){return role();}
 async function cloudSignIn(){
- const email=document.getElementById('authEmail').value.trim().toLowerCase(), password=document.getElementById('authPassword').value;
- if(!email||!password)return authMsg('Enter email and password.'); authMsg('Signing in…');
- const {data,error}=await sb.auth.signInWithPassword({email,password});
- if(error){authMsg(error.message);return;} cloudUser=data.user; await cloudStart();
+ try{
+  if(!ensureSupabase())return;
+  const email=document.getElementById('authEmail').value.trim().toLowerCase(), password=document.getElementById('authPassword').value;
+  if(!email||!password){authMsg('Enter email and password.');return;}
+  authMsg('Signing in…');
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){authMsg(error.message);return;}
+  cloudUser=data.user; await cloudStart();
+ }catch(e){authMsg('Login error: '+(e?.message||e));}
 }
 async function cloudSignUp(){
  const email=document.getElementById('authEmail').value.trim().toLowerCase(), password=document.getElementById('authPassword').value, full_name=document.getElementById('authName').value.trim();
@@ -167,8 +173,17 @@ async function cloudSignOut(){await sb.auth.signOut();location.reload();}
 async function cloudAddUser(){alert('User management is available to the supervisor. We will complete the user invitation screen after the supervisor login is verified.');}
 async function cloudAudit(){const {data,error}=await sb.from('audit_logs').select('*').order('created_at',{ascending:false}).limit(200);const panel=document.getElementById('auditPanel');panel.style.display='block';document.getElementById('auditList').innerHTML=error?error.message:(data||[]).map(a=>'<div style="padding:8px;border-bottom:1px solid #ddd"><b>'+a.action+'</b> • '+a.table_name+' • '+a.created_at+'</div>').join('');}
 function closeAudit(){document.getElementById('auditPanel').style.display='none';}
-async function cloudInit(){const {data}=await sb.auth.getSession();if(data.session){cloudUser=data.session.user;await cloudStart();}else document.getElementById('cloudAuth').style.display='flex';}
+async function cloudInit(){
+ try{
+  if(!ensureSupabase())return;
+  const {data,error}=await sb.auth.getSession();
+  if(error){authMsg(error.message);return;}
+  if(data.session){cloudUser=data.session.user;await cloudStart();}
+  else document.getElementById('cloudAuth').style.display='flex';
+ }catch(e){authMsg('Connection error: '+(e?.message||e));}
+}
 window.addEventListener('load',cloudInit);
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('cloudAuth')?.style.display!=='none')cloudSignIn();});
 
 let activeProfileId=null, activeCompleteId=null;
 function getMember(id){return people.find(x=>String(x.id)===String(id));}
