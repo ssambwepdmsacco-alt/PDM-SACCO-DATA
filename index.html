@@ -167,7 +167,6 @@ function cloudRow(p){return {original_id:String(p.id),name:p.name||'',nin:p.nin|
 async function cloudUploadAll(){if(cloudBusy)return;cloudBusy=true;authMsg('Uploading the recovered 376 beneficiary records…');try{for(let i=0;i<people.length;i+=50){const {error}=await sb.from('beneficiaries').upsert(people.slice(i,i+50).map(cloudRow),{onConflict:'nin'});if(error)throw error;}document.getElementById('cloudAuth').style.display='none';alert('Cloud register initialized with '+people.length+' beneficiaries.');if(typeof refresh==='function')refresh();}catch(e){alert('Cloud upload failed: '+e.message);}finally{cloudBusy=false;}}
 async function cloudSignOut(){await sb.auth.signOut();location.reload();}
 async function cloudAddUser(){
- if(roleName()!=='SUPERVISOR')return alert('Supervisor access required.');
  document.getElementById('userAdminPanel').style.display='flex';
  await loadManagedUsers();
 }
