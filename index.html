@@ -171,7 +171,7 @@ async function cloudStart(){
   document.getElementById('userAdminBtn').style.display=p.role==='SUPERVISOR'?'inline-block':'none';
   document.getElementById('auditBtn').style.display=p.role==='SUPERVISOR'?'inline-block':'none';
   authMsg('Loading SACCO beneficiary records…');
-  const {data:rows,error}=await sb.from('beneficiaries').select('*').order('created_at',{ascending:true});
+  let {data:rows,error}=await sb.from('beneficiaries').select('*').order('created_at',{ascending:true});
   if(error){
     authMsg('Cloud database error: '+error.message+' Please check that this phone is connected to the internet.');
     return false;
