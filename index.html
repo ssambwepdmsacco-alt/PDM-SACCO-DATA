@@ -109,7 +109,57 @@ function normalizeStatus(v){let x=normalizeHeader(v);if(!x)return 'Not Yet';if(x
 function mergeImportedRow(r){let x=buildMappedRow(r);x['WENDI A/C NO.']=cleanPhone(x['WENDI A/C NO.']);let nin=x.NIN.toUpperCase(),existing=nin?people.find(p=>String(p.nin||'').toUpperCase()===nin):null,p=existing||{id:Date.now().toString()+Math.random()};let amountRaw=String(x.AMOUNT??'').trim(),pdmRaw=String(x['PDM AMOUNT']??'').trim(),memberStatus=String(x['MEMBER STATUS']||p.memberStatus||'Alive').trim();if(!MEMBER_STATUSES.includes(memberStatus))memberStatus='Alive';Object.assign(p,{name:x.NAME||p.name||'',nin,gender:x.GENDER||p.gender||'',age:cleanNumber(x.AGE)||p.age||'',birthYear:cleanNumber(x['BIRTH YEAR'])||p.birthYear||'',disability:normalizeHeader(x.DISABILITY)==='YES'?'Yes':'No',memberStatus,subCounty:x['SUB COUNTY']||p.subCounty||FIXED_SUB_COUNTY,parish:x.PARISH||p.parish||FIXED_PARISH,village:x.VILLAGE||p.village||'',enterprise:x.ENTERPRISE||p.enterprise||'',enterpriseGroup:x['ENTERPRISE GROUP']||p.enterpriseGroup||'',wEndi:x['WENDI A/C NO.']||p.wEndi||'',amount:amountRaw!==''?cleanNumber(x.AMOUNT):(p.amount??0),financialYear:x['FINANCIAL YEAR']||p.financialYear||'',pdmStatus:normalizeStatus(x['PDM STATUS']||p.pdmStatus),pdmAmount:pdmRaw!==''?cleanNumber(x['PDM AMOUNT']):(p.pdmAmount??0),pdmDate:x['PDM FUNDING DATE']||p.pdmDate||'',paidBack:String(x['AMOUNT PAID BACK']??'').trim()!==''?cleanNumber(x['AMOUNT PAID BACK']):(p.paidBack??0)});if(p.pdmStatus==='Got PDM Funds'){if(p.pdmAmount==null||pdmRaw==='')p.pdmAmount=existing?.pdmAmount??FIXED_PDM_AMOUNT;if(p.amount==null||amountRaw==='')p.amount=existing?.amount??FIXED_TOTAL_AMOUNT;p.subCounty=FIXED_SUB_COUNTY;p.parish=FIXED_PARISH;}if(!p.age&&p.birthYear)p.age=new Date().getFullYear()-p.birthYear;if(!p.gender&&p.nin){let m=p.nin.match(/^C([MF])(\d{2})/);if(m)p.gender=m[1]==='M'?'Male':'Female'}if(!p.birthYear&&p.nin){let m=p.nin.match(/^C[MF](\d{2})/);if(m){let yy=Number(m[1]);p.birthYear=yy<=26?settings.lowYear+yy:settings.highYear+(yy-27);p.age=new Date().getFullYear()-p.birthYear}}p.ageGroup=ageGroup(p.age);if(!p.name)return {ok:false};if(existing)return {ok:true,updated:true};people.push(p);return {ok:true,updated:false}}
 
 async function importRows(arr,fileName){if(roleName()!=='SUPERVISOR')return alert('Only the SUPERVISOR can import Excel/CSV data.');const before=JSON.stringify(people);let count=0,updated=0,skipped=0;try{arr.forEach(r=>{let z=mergeImportedRow(r);if(!z.ok)skipped++;else if(z.updated)updated++;else count++});await cloudSyncAllCurrent();document.getElementById('importMsg').innerHTML='<b>'+esc(fileName)+'</b>: Imported <b>'+count+'</b> new records; updated <b>'+updated+'</b> existing records; skipped <b>'+skipped+'</b> rows without a NAME. Cloud and local register are synchronized.';refresh();}catch(e){people=JSON.parse(before);saveData();document.getElementById('importMsg').textContent='Import cancelled: '+friendlyCloudError(e)+'. No local changes were kept.';alert('Import cancelled: '+friendlyCloudError(e));}}
-function importSpreadsheet(){let f=document.getElementById('file').files[0];if(!f)return alert('Choose an Excel or CSV file first');let ext=f.name.toLowerCase().split('.').pop();let rd=new FileReader();rd.onload=()=>{try{if(ext==='csv'){importRows(parseCSV(rd.result),f.name)}else if((ext==='xls')&&typeof XLSX==='undefined'){let doc=new DOMParser().parseFromString(rd.result,'text/html');let table=doc.querySelector('table');if(!table)throw new Error('Offline XLS backup not recognised.');let rows=[...table.querySelectorAll('tr')].map(tr=>[...tr.children].map(td=>td.textContent.trim()));if(rows.length<2)throw new Error('No data rows found.');let headers=rows.shift();importRows(rows.map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??'']))),f.name)}else{if(typeof XLSX==='undefined')throw new Error('Excel reader library did not load. Use the offline XLS backup or CSV, or connect to the internet for XLSX/XLSM files.');let wb=XLSX.read(rd.result,{type:'array',cellDates:true});let all=[];wb.SheetNames.forEach(sn=>{let ws=wb.Sheets[sn],rows=XLSX.utils.sheet_to_json(ws,{defval:'',raw:false});all=all.concat(rows)});importRows(all,f.name)} }catch(e){document.getElementById('importMsg').textContent='Import failed: '+e.message;alert('Import failed: '+e.message)}};if(ext==='csv'||ext==='xls'&&typeof XLSX==='undefined')rd.readAsText(f);else rd.readAsArrayBuffer(f)}
+let xlsxLoadPromise=null;
+function ensureXlsxLibrary(){
+ if(typeof XLSX!=='undefined')return Promise.resolve(true);
+ if(xlsxLoadPromise)return xlsxLoadPromise;
+ xlsxLoadPromise=new Promise((resolve,reject)=>{
+  const urls=['https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js','https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'];
+  let i=0;
+  const next=()=>{
+   if(typeof XLSX!=='undefined')return resolve(true);
+   if(i>=urls.length)return reject(new Error('Excel reader library could not be loaded. For offline use, import CSV or the exported XLS backup.'));
+   const sc=document.createElement('script');sc.src=urls[i++];sc.async=true;
+   sc.onload=()=>typeof XLSX!=='undefined'?resolve(true):next();
+   sc.onerror=()=>next();
+   document.head.appendChild(sc);
+  };
+  next();
+ });
+ return xlsxLoadPromise;
+}
+async function importSpreadsheet(){
+ const input=document.getElementById('file'),btn=document.querySelector('button[onclick="importSpreadsheet()"]'),msg=document.getElementById('importMsg');
+ const f=input?.files?.[0];
+ if(!f)return alert('Choose an Excel or CSV file first');
+ const ext=f.name.toLowerCase().split('.').pop();
+ const oldText=btn?.textContent;
+ if(btn){btn.disabled=true;btn.textContent='IMPORTING…';}
+ if(msg)msg.textContent='Reading '+f.name+'… Please wait.';
+ try{
+  let rows=[];
+  if(ext==='csv'){
+   const text=await f.text();
+   rows=parseCSV(text);
+  }else{
+   await ensureXlsxLibrary();
+   const buf=await f.arrayBuffer();
+   const wb=XLSX.read(buf,{type:'array',cellDates:true,raw:false});
+   wb.SheetNames.forEach(sn=>{
+    const ws=wb.Sheets[sn];
+    rows=rows.concat(XLSX.utils.sheet_to_json(ws,{defval:'',raw:false}));
+   });
+  }
+  if(!rows.length)throw new Error('No data rows were found in the selected file.');
+  if(msg)msg.textContent='Processing '+rows.length+' rows and synchronizing safely with the cloud…';
+  await importRows(rows,f.name);
+ }catch(e){
+  if(msg)msg.textContent='Import failed: '+(e?.message||e);
+  alert('Import failed: '+(e?.message||e));
+ }finally{
+  if(btn){btn.disabled=false;btn.textContent=oldText||'IMPORT EXCEL / CSV';}
+ }
+}
 const cols=['NAME','NIN','GENDER','AGE','AGE GROUP','DISABILITY','MEMBER STATUS','SUB COUNTY','PARISH','VILLAGE','ENTERPRISE','ENTERPRISE GROUP','WENDI A/C NO.','AMOUNT','FINANCIAL YEAR','PDM STATUS','PDM AMOUNT','PDM FUNDING DATE','AMOUNT PAID BACK','BIRTH YEAR'];function csvCell(x){return'"'+String(x??'').replace(/"/g,'""')+'"'}function downloadTemplate(){downloadBlob(new Blob([cols.map(csvCell).join(',')+'\n'],{type:'text/csv'}),'ssambwe_pdm_import_template.csv')}
 function recordsForReport(){let type=document.getElementById('rType').value,st=document.getElementById('rStatus').value,fy=document.getElementById('rFY').value.trim().toLowerCase(),from=document.getElementById('rFrom').value,to=document.getElementById('rTo').value,q=document.getElementById('rSearch').value.trim().toLowerCase();return people.filter(p=>(!st||p.pdmStatus===st)&&(!fy||String(p.financialYear||'').toLowerCase()===fy)&&(!from||String(p.pdmDate||'')>=from)&&(!to||String(p.pdmDate||'')<=to)&&(!q||[p.name,p.nin,p.village,p.parish,p.enterprise,p.subCounty,p.enterpriseGroup,p.memberStatus].join(' ').toLowerCase().includes(q))&&(!type||(type==='Paid Back Report'&&paid(p)>0)||(type==='Outstanding Report'&&balance(p)>0)||(type==='Deceased Beneficiaries'&&(p.memberStatus||'Alive')==='Deceased')))}
 
