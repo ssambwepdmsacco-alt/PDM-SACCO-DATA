@@ -96,6 +96,11 @@ const headerAliases={
 function buildMappedRow(row){let normalized={};Object.keys(row).forEach(k=>normalized[normalizeHeader(k)]=row[k]);let out={};for(const target of Object.keys(headerAliases)){let val='';for(const alias of headerAliases[target]){let key=normalizeHeader(alias);if(Object.prototype.hasOwnProperty.call(normalized,key)&&String(normalized[key]??'').trim()!==''){val=normalized[key];break}}out[target]=String(val??'').trim()}return out}
 function parseCSV(text){let lines=text.split(/\r?\n/).filter(x=>x.trim());if(!lines.length)return[];let parse=l=>{let out=[],cur='',q=false;for(let i=0;i<l.length;i++){let c=l[i];if(c==='"'){if(q&&l[i+1]==='"'){cur+='"';i++}else q=!q}else if(c===','&&!q){out.push(cur);cur=''}else cur+=c}out.push(cur);return out};let headers=parse(lines[0]).map(h=>h.trim());return lines.slice(1).map(line=>{let v=parse(line),o={};headers.forEach((h,i)=>o[h]=(v[i]||'').trim());return o})}
 function expandScientificInteger(v){let s=String(v??'').trim().replace(/^,/, '');if(!/[eE]/.test(s))return s;let m=s.match(/^([+-]?)(\d+)(?:\.(\d*))?[eE]([+-]?\d+)$/);if(!m)return s;let sign=m[1]==='-'?'-':'';let whole=m[2],frac=m[3]||'',exp=Number(m[4]);if(!Number.isInteger(exp))return s;let digits=whole+frac,pos=whole.length+exp;if(pos<=0)return sign+'0.'+'0'.repeat(-pos)+digits.replace(/^0+(?=\d)/,'');if(pos>=digits.length)return sign+digits+'0'.repeat(pos-digits.length);return sign+digits.slice(0,pos)+'.'+digits.slice(pos)}
+window.cleanPhone = window.cleanPhone || function(v){
+  let s=String(v??'').trim().replace(/[\\s()\\-]/g,'').replace(/^,/,'');
+  if(/^7\\d{8}$/.test(s))s='0'+s;
+  return s;
+};
 function cleanPhone(v){
   let s=expandScientificInteger(v).trim().replace(/[\s()\-]/g,'');
   if(/^,\d+$/.test(s))s=s.slice(1);
