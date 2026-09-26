@@ -58,9 +58,6 @@ function clearForm(){editId=null;document.querySelectorAll('#register input').fo
   const p=people.find(x=>x.id===id);
   if(!p)return;
   if(roleName()!=='SUPERVISOR')return alert('Only the SUPERVISOR can delete members.');
-  if(String(p.nin||'').trim().toUpperCase()==='NIN' || String(p.name||'').trim().toUpperCase()==="BENEFICIARY'S NAME"){
-    return alert('This is the register template/header row, not a real member. It cannot be deleted.');
-  }
   if(confirm('Delete this person from the cloud register? This removes ONE member record only.')){
     try{
       await cloudDeletePerson(p);
@@ -261,7 +258,26 @@ function cloudMapRow(r){return {id:r.original_id||r.id,cloudId:r.id,name:r.name|
 async function cloudFindId(p){if(p?.cloudId)return p.cloudId;const q=await sb.from('beneficiaries').select('id').eq('original_id',String(p?.id||'')).maybeSingle();if(q.error)throw q.error;if(q.data?.id)return q.data.id;if(p?.nin){const n=await sb.from('beneficiaries').select('id').eq('nin',String(p.nin).trim().toUpperCase()).maybeSingle();if(n.error)throw n.error;if(n.data?.id)return n.data.id;}return null;}
 let cloudRealtimeChannel=null,cloudRealtimeTimer=null,cloudRealtimeBusy=false;
 function setLiveStatus(msg){const e=document.getElementById('liveSyncStatus');if(e)e.textContent=msg;}
-async function refreshFromRealtime(){if(!cloudUser||cloudRealtimeBusy)return;if(cloudBusy){cloudRealtimeTimer=setTimeout(refreshFromRealtime,1200);return;}cloudRealtimeBusy=true;try{const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();if(typeof refresh==='function')refresh();setLiveStatus('LIVE SYNC: ON • '+new Date().toLocaleTimeString());}catch(e){setLiveStatus('LIVE SYNC: RECONNECTING');}finally{cloudRealtimeBusy=false;}}
+async function refreshFromRealtime(){
+  if(!cloudUser||cloudRealtimeBusy)return;
+  if(cloudBusy){cloudRealtimeTimer=setTimeout(refreshFromRealtime,1200);return;}
+  cloudRealtimeBusy=true;
+  try{
+    const localBefore=Array.isArray(window.people)?people.slice():[];
+    const rows=await cloudReloadRows();
+    const localOnly=roleName()==='SUPERVISOR'?localRecordsNotInCloud(localBefore,rows):[];
+    if(localOnly.length){
+      localStorage.setItem('ssambwe_pending_local_sync_v1',JSON.stringify(localOnly));
+      const b=document.getElementById('localSyncBtn');
+      if(b){b.textContent='SYNC LOCAL DATA ('+localOnly.length+')';b.style.display='inline-block';}
+    }
+    people=rows.map(cloudMapRow).concat(localOnly);
+    saveData();
+    if(typeof refresh==='function')refresh();
+    setLiveStatus('LIVE SYNC: ON • '+new Date().toLocaleTimeString());
+  }catch(e){setLiveStatus('LIVE SYNC: RECONNECTING');}
+  finally{cloudRealtimeBusy=false;}
+}
 function scheduleRealtimeRefresh(){clearTimeout(cloudRealtimeTimer);cloudRealtimeTimer=setTimeout(refreshFromRealtime,500);}
 async function cloudSubscribeRealtime(){if(!cloudUser||!sb?.channel)return;try{if(cloudRealtimeChannel)await sb.removeChannel(cloudRealtimeChannel);await sb.realtime.setAuth();setLiveStatus('LIVE SYNC: CONNECTING');cloudRealtimeChannel=sb.channel('saccco-beneficiary-live').on('postgres_changes',{event:'*',schema:'public',table:'beneficiaries'},()=>scheduleRealtimeRefresh()).on('postgres_changes',{event:'UPDATE',schema:'public',table:'user_profiles',filter:'id=eq.'+cloudUser.id},payload=>{if(payload?.new?.active===false){alert('Your SACCO account has been disabled.');cloudSignOut();}else if(payload?.new?.role&&payload.new.role!==cloudProfile?.role){cloudProfile=payload.new;document.getElementById('cloudUser').textContent=(payload.new.full_name||cloudUser.email)+' • '+payload.new.role;refresh();}}).subscribe(status=>{if(status==='SUBSCRIBED')setLiveStatus('LIVE SYNC: ON');else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')setLiveStatus('LIVE SYNC: RECONNECTING');});}catch(e){setLiveStatus('LIVE SYNC: RECONNECTING');}}
 async function cloudReloadRows(){const q=await sb.from('beneficiaries').select('*').order('created_at',{ascending:true});if(q.error)throw q.error;return q.data||[];}
