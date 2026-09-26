@@ -1,12 +1,17 @@
 {
+  "id": "./",
   "name": "SSAMBWE NDEJJE TOWNCOUNCIL - PDM SACCO",
   "short_name": "SSAMBWE PDM SACCO",
+  "description": "SSAMBWE NDEJJE TOWNCOUNCIL PDM SACCO member and beneficiary management system.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "any",
   "background_color": "#ffffff",
   "theme_color": "#0b6b3a",
+  "prefer_related_applications": false,
+  "categories": ["business", "finance", "productivity"],
   "icons": [
     {"src":"icon-192.png","sizes":"192x192","type":"image/png"},
     {"src":"icon-512.png","sizes":"512x512","type":"image/png"},
