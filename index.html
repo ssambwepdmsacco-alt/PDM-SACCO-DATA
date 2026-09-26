@@ -100,7 +100,7 @@ function cleanPhone(v){
   let s=expandScientificInteger(v).trim().replace(/[\s()\-]/g,'');
   if(/^,\d+$/.test(s))s=s.slice(1);
   if(/^7\d{8}$/.test(s))s='0'+s;
-  if(/^2567\d{8}$/.test(s))return s;
+  if(/^2567\d{8}$/.test(s))return '0'+s.slice(3);
   if(/^07\d{8}$/.test(s))return s;
   return s;
 }
