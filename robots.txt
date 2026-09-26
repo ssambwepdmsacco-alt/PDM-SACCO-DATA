@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ssambwepdmsacco-alt.github.io/PDM-SACCO-DATA/sitemap.xml
