@@ -108,10 +108,11 @@ function renderBulkList(){let el=document.getElementById('bulkList');if(!el)retu
   const ids=[...document.querySelectorAll('.bulkPerson:checked')].map(x=>x.value),date=document.getElementById('bulkDate').value,fy=document.getElementById('bulkFY').value.trim();
   if(!ids.length)return alert('Select at least one member.');if(!date)return alert('Enter the funding date.');
   const before=new Map(ids.map(id=>[id,JSON.stringify(people.find(x=>x.id===id)||null)]));
+  const wasBusy=cloudBusy;cloudBusy=true;
   try{
     for(const id of ids){const p=people.find(x=>x.id===id);if(!p)continue;const updated={...p,pdmStatus:'Got PDM Funds',pdmAmount:FIXED_PDM_AMOUNT,amount:FIXED_TOTAL_AMOUNT,subCounty:FIXED_SUB_COUNTY,parish:FIXED_PARISH,pdmDate:date,financialYear:fy||p.financialYear,paidBack:p.paidBack==null?0:p.paidBack};const saved=await cloudSavePerson(updated,false);const ix=people.findIndex(x=>x.id===saved.id||x.cloudId===saved.cloudId);if(ix>=0)people[ix]=saved;}
     saveData();refresh();alert(ids.length+' members have been marked as Got PDM Funds and synchronized to the cloud.');
-  }catch(e){for(const [id,json] of before){const ix=people.findIndex(x=>x.id===id),old=json?JSON.parse(json):null;if(ix>=0&&old)people[ix]=old;}saveData();refresh();alert('Bulk funding was cancelled: '+friendlyCloudError(e));}
+  }catch(e){for(const [id,json] of before){const ix=people.findIndex(x=>x.id===id),old=json?JSON.parse(json):null;if(ix>=0&&old)people[ix]=old;}saveData();refresh();alert('Bulk funding was cancelled: '+friendlyCloudError(e));}finally{cloudBusy=wasBusy;}
 }
 function exportMaster(){let out=[cols.join(',')];people.forEach(p=>out.push([p.name,p.nin,p.gender,p.age,ageGroup(p.age),p.disability,p.memberStatus||'Alive',p.subCounty,p.parish,p.village,p.enterprise,p.enterpriseGroup,p.wEndi,p.amount,p.financialYear,p.pdmStatus,p.pdmAmount,p.pdmDate,p.paidBack,p.birthYear].map(csvCell).join(',')));downloadBlob(new Blob([out.join('\n')],{type:'text/csv'}),'SSAMBWE_NDEJJE_TOWNCOUNCIL_PDM_SACCO_BACKUP.csv')}
 function excelBackupRows(rows){return [cols,...rows.map(p=>[p.name,p.nin,p.gender,p.age,ageGroup(p.age),p.disability,p.memberStatus||'Alive',p.subCounty,p.parish,p.village,p.enterprise,p.enterpriseGroup,p.wEndi,p.amount,p.financialYear,p.pdmStatus,p.pdmAmount,p.pdmDate,p.paidBack,p.birthYear])]}
@@ -162,6 +163,7 @@ async function cloudStart(){
   document.getElementById('cloudUser').textContent=(p.full_name||cloudUser.email)+' • '+p.role;
   document.getElementById('userAdminBtn').style.display=p.role==='SUPERVISOR'?'inline-block':'none';
   document.getElementById('auditBtn').style.display=p.role==='SUPERVISOR'?'inline-block':'none';
+  await cloudSubscribeRealtime();
   authMsg('Loading SACCO beneficiary records…');
   let {data:rows,error}=await sb.from('beneficiaries').select('*').order('created_at',{ascending:true});
   if(error){
@@ -180,7 +182,6 @@ async function cloudStart(){
   document.getElementById('cloudAuth').style.display='none';
   document.getElementById('cloudBar').style.display='block';
   if(typeof refresh==='function')refresh();
-  await cloudSubscribeRealtime();
   return true;
  }catch(e){
   authMsg('Connection error: '+(e?.message||e)+'. Make sure this phone has internet access.');
@@ -198,9 +199,33 @@ async function cloudSubscribeRealtime(){if(!cloudUser||!sb?.channel)return;try{i
 async function cloudReloadRows(){const q=await sb.from('beneficiaries').select('*').order('created_at',{ascending:true});if(q.error)throw q.error;return q.data||[];}
 function friendlyCloudError(e){const m=e?.message||String(e||'Cloud error');if(/duplicate key|unique constraint|23505/i.test(m))return 'This member was not saved because the NIN or member ID already exists. Check the NIN and try again.';if(/row-level security|42501|permission denied/i.test(m))return 'You do not have permission for this operation. Please use the correct SACCO role.';return m;}
 async function cloudUploadAll(){if(cloudBusy)return false;cloudBusy=true;authMsg('Uploading the recovered beneficiary records to the cloud…');try{const seen=new Set();for(const p of people){const n=String(p.nin||'').trim().toUpperCase();if(n){if(seen.has(n))throw new Error('Duplicate NIN in the upload: '+n);seen.add(n);}}for(let i=0;i<people.length;i+=50){const batch=people.slice(i,i+50).map(cloudRow);const q=await sb.from('beneficiaries').insert(batch);if(q.error)throw q.error;}const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();authMsg('Cloud register initialized with '+people.length+' beneficiaries.');return true;}catch(e){authMsg('Cloud upload failed: '+friendlyCloudError(e));return false;}finally{cloudBusy=false;}}
-async function cloudSavePerson(p,isNew){if(!cloudUser)throw new Error('Please sign in first.');if(isNew){const q=await sb.from('beneficiaries').insert(cloudRow(p)).select('*').single();if(q.error)throw q.error;return cloudMapRow(q.data);}if(roleName()!=='SUPERVISOR')throw new Error('Only the SUPERVISOR can edit existing member records.');const cloudId=await cloudFindId(p);if(!cloudId)throw new Error('Cloud member ID not found.');const q=await sb.from('beneficiaries').update(cloudRow({...p,cloudId})).eq('id',cloudId).select('*').single();if(q.error)throw q.error;return cloudMapRow(q.data);}
-async function cloudDeletePerson(p){if(!cloudUser)throw new Error('Please sign in first.');if(roleName()!=='SUPERVISOR')throw new Error('Only the SUPERVISOR can delete member records.');const cloudId=await cloudFindId(p);if(!cloudId)throw new Error('Cloud member ID not found.');const q=await sb.from('beneficiaries').delete().eq('id',cloudId);if(q.error)throw q.error;}
-async function cloudSyncAllCurrent(){const existing=await cloudReloadRows();const owners=new Map();for(const r of existing){const n=String(r.nin||'').trim().toUpperCase();if(n)owners.set(n,String(r.original_id));}const seen=new Set();for(const p of people){const n=String(p.nin||'').trim().toUpperCase();if(n){if(seen.has(n))throw new Error('Duplicate NIN in the import: '+n);seen.add(n);const owner=owners.get(n);if(owner&&owner!==String(p.id))throw new Error('NIN '+n+' already belongs to another member. Import was cancelled.');}}for(let i=0;i<people.length;i+=50){const batch=people.slice(i,i+50).map(cloudRow);const q=await sb.from('beneficiaries').upsert(batch,{onConflict:'original_id'});if(q.error)throw q.error;}const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();}
+async function cloudSavePerson(p,isNew){
+  if(!cloudUser)throw new Error('Please sign in first.');
+  const wasBusy=cloudBusy;cloudBusy=true;
+  try{
+    if(isNew){const q=await sb.from('beneficiaries').insert(cloudRow(p)).select('*').single();if(q.error)throw q.error;return cloudMapRow(q.data);}
+    if(roleName()!=='SUPERVISOR')throw new Error('Only the SUPERVISOR can edit existing member records.');
+    const cloudId=await cloudFindId(p);if(!cloudId)throw new Error('Cloud member ID not found.');
+    const q=await sb.from('beneficiaries').update(cloudRow({...p,cloudId})).eq('id',cloudId).select('*').single();if(q.error)throw q.error;return cloudMapRow(q.data);
+  }finally{cloudBusy=wasBusy;}
+}
+async function cloudDeletePerson(p){
+  if(!cloudUser)throw new Error('Please sign in first.');if(roleName()!=='SUPERVISOR')throw new Error('Only the SUPERVISOR can delete member records.');
+  const wasBusy=cloudBusy;cloudBusy=true;
+  try{const cloudId=await cloudFindId(p);if(!cloudId)throw new Error('Cloud member ID not found.');const q=await sb.from('beneficiaries').delete().eq('id',cloudId);if(q.error)throw q.error;}
+  finally{cloudBusy=wasBusy;}
+}
+async function cloudSyncAllCurrent(){
+  const wasBusy=cloudBusy;cloudBusy=true;
+  try{
+    const existing=await cloudReloadRows();const owners=new Map();
+    for(const r of existing){const n=String(r.nin||'').trim().toUpperCase();if(n)owners.set(n,String(r.original_id));}
+    const seen=new Set();
+    for(const p of people){const n=String(p.nin||'').trim().toUpperCase();if(n){if(seen.has(n))throw new Error('Duplicate NIN in the import: '+n);seen.add(n);const owner=owners.get(n);if(owner&&owner!==String(p.id))throw new Error('NIN '+n+' already belongs to another member. Import was cancelled.');}}
+    for(let i=0;i<people.length;i+=50){const batch=people.slice(i,i+50).map(cloudRow);const q=await sb.from('beneficiaries').upsert(batch,{onConflict:'original_id'});if(q.error)throw q.error;}
+    const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();
+  }finally{cloudBusy=wasBusy;}
+}
 async function cloudSignOut(){await sb.auth.signOut();location.reload();}
 async function cloudAddUser(){
  document.getElementById('userAdminPanel').style.display='flex';
