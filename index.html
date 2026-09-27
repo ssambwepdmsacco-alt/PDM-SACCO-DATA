@@ -287,13 +287,13 @@ async function cloudStart(){
   document.getElementById('auditBtn').style.display=p.role==='SUPERVISOR'?'inline-block':'none';
   await cloudSubscribeRealtime();
   authMsg('Loading SACCO beneficiary records…');
-  const localBeforeCloud=Array.isArray(window.people)?people.slice():[];
+  const localBeforeCloud=Array.isArray(people)?people.slice():[];
   let {data:rows,error}=await sb.from('beneficiaries').select('*').order('created_at',{ascending:true});
   if(error){
     authMsg('Cloud database error: '+error.message+' Please check that this phone is connected to the internet.');
     return false;
   }
-  if((rows||[]).length===0 && p.role==='SUPERVISOR' && Array.isArray(window.people) && people.length){
+  if((rows||[]).length===0 && p.role==='SUPERVISOR' && Array.isArray(people) && people.length){
     const uploaded=await cloudUploadAll();
     if(!uploaded)return false;
     const {data:retryRows,error:retryError}=await sb.from('beneficiaries').select('*').order('created_at',{ascending:true});
@@ -302,7 +302,8 @@ async function cloudStart(){
   }
   if(!Array.isArray(rows)){authMsg('No beneficiary data was returned from the cloud.');return false;}
   if(p.role==='SUPERVISOR'&&localBeforeCloud.length){const localOnly=localRecordsNotInCloud(localBeforeCloud,rows);if(localOnly.length){localStorage.setItem('ssambwe_pending_local_sync_v1',JSON.stringify(localOnly));document.getElementById('localSyncBtn').textContent='SYNC LOCAL DATA ('+localOnly.length+')';document.getElementById('localSyncBtn').style.display='inline-block';}}
-  window.people=rows.map(cloudMapRow);
+  people=rows.map(cloudMapRow);
+  saveData();
   document.getElementById('cloudAuth').style.display='none';
   document.getElementById('cloudBar').style.display='block';
   if(typeof refresh==='function')refresh();
@@ -322,7 +323,7 @@ async function refreshFromRealtime(){
   if(cloudBusy){cloudRealtimeTimer=setTimeout(refreshFromRealtime,1200);return;}
   cloudRealtimeBusy=true;
   try{
-    const localBefore=Array.isArray(window.people)?people.slice():[];
+    const localBefore=Array.isArray(people)?people.slice():[];
     const rows=await cloudReloadRows();
     const localOnly=roleName()==='SUPERVISOR'?localRecordsNotInCloud(localBefore,rows):[];
     if(localOnly.length){
@@ -432,6 +433,9 @@ async function cloudInit(){
  }catch(e){authMsg('Connection error: '+(e?.message||e));}
 }
 window.addEventListener('load',cloudInit);
+window.addEventListener('focus',()=>{if(cloudUser&&!document.hidden)refreshFromRealtime();});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cloudUser)refreshFromRealtime();});
+setInterval(()=>{if(cloudUser&&!document.hidden)refreshFromRealtime();},30000);
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('cloudAuth')?.style.display!=='none')cloudSignIn();});
 
 let activeProfileId=null, activeCompleteId=null;
