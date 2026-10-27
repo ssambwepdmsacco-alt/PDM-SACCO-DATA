@@ -32,7 +32,7 @@
 <div class="panel table-wrap"><h3>People Who Got PDM Funds</h3><table><thead><tr><th>NAME</th><th>NIN</th><th>AMOUNT</th><th>DATE</th><th>FINANCIAL YEAR</th><th>PAID BACK</th><th>OUTSTANDING</th></tr></thead><tbody id="gotTable"></tbody></table></div></section>
 <section id="repaymentCentre" class="section">
 <h2>PDM Repayment Centre</h2>
-<div class="notice">Record each instalment separately. A successful payment updates the member’s cumulative paid-back amount and outstanding balance in the shared cloud register. Receipt/reference numbers must be unique.</div>
+<div class="notice">Record each instalment separately. A successful payment updates the member’s cumulative paid-back amount and outstanding balance in the shared cloud register. The system generates a unique receipt/reference automatically after a payment is saved.</div>
 <div class="panel no-print">
 <h3>Record a Repayment</h3>
 <div class="grid">
@@ -41,7 +41,7 @@
 <div><label>Outstanding before payment</label><input id="repayBalanceBefore" readonly value="UGX 0"></div>
 <div><label>Amount received (UGX)</label><input id="repayAmount" type="number" min="1" step="1" placeholder="Enter instalment amount" oninput="repayPreview()"></div>
 <div><label>Payment date</label><input id="repayDate" type="date"></div>
-<div><label>Receipt / reference number</label><input id="repayReceipt" maxlength="100" placeholder="e.g. PDM-2026-0001"></div>
+<div><label>Receipt / reference</label><input id="repayReceipt" readonly value="Generated automatically after saving"></div>
 <div style="grid-column:1/-1"><label>Notes (optional)</label><input id="repayNotes" maxlength="500" placeholder="Payment details, if needed"></div>
 </div>
 <div class="cards">
@@ -56,6 +56,20 @@
 <div class="panel table-wrap"><h3>Selected Member’s Repayment History</h3><div id="repayHistorySummary" class="notice">Select a funded member to view payment history.</div>
 <table><thead><tr><th>PAYMENT DATE</th><th>RECEIPT / REFERENCE</th><th>AMOUNT RECEIVED</th><th>NOTES</th><th>RECEIVED BY</th><th>RECORDED AT</th></tr></thead><tbody id="repayHistoryRows"><tr><td colspan="6">Select a funded member.</td></tr></tbody></table>
 <button class="action secondary no-print" onclick="repayPrintHistory()">PRINT PAYMENT HISTORY</button></div>
+<div class="panel no-print">
+<h3>Members’ Repayment Report</h3>
+<div class="grid">
+<div><label>Member</label><select id="repayReportMember"><option value="">All members</option></select></div>
+<div><label>From payment date</label><input id="repayReportFrom" type="date"></div>
+<div><label>To payment date</label><input id="repayReportTo" type="date"></div>
+</div>
+<button class="action" onclick="repayLoadReport()">GENERATE REPORT</button>
+<button class="action secondary" onclick="repayExportReport()">EXPORT REPORT (CSV / EXCEL)</button>
+<button class="action secondary" onclick="repayPrintReport()">PRINT REPORT</button>
+<div id="repayReportSummary" class="notice">Generate a report to view recorded instalments.</div>
+</div>
+<div class="panel table-wrap"><h3>Repayment Report Results</h3>
+<table id="repayReportTable"><thead><tr><th>MEMBER</th><th>NIN</th><th>PAYMENT DATE</th><th>RECEIPT</th><th>AMOUNT</th><th>NOTES</th><th>RECEIVED BY</th><th>RECORDED AT</th></tr></thead><tbody id="repayReportRows"><tr><td colspan="8">Generate a report to load payments.</td></tr></tbody></table></div>
 </section>
 <section id="analysis" class="section"><h2>Analysis</h2><div class="panel"><div class="grid"><div><b>Disability YES:</b> <span id="aDis">0</span></div><div><b>Total Amount:</b> <span id="aAmt">UGX 0</span></div><div><b>Average Age:</b> <span id="aAge">0</span></div><div><b>PDM Disbursed:</b> <span id="aPdm">UGX 0</span></div><div><b>Paid Back:</b> <span id="aPaid">UGX 0</span></div><div><b>Outstanding:</b> <span id="aBalance">UGX 0</span></div></div></div><div class="panel table-wrap"><h3>Breakdown by Age Group</h3><table><thead><tr><th>AGE GROUP</th><th>COUNT</th><th>TOTAL AMOUNT</th><th>DISABILITY</th><th>PDM FUNDED</th><th>PAID BACK</th><th>OUTSTANDING</th></tr></thead><tbody id="ageAnalysis"></tbody></table></div></section>
 <section id="reports" class="section"><h2>Reports</h2><div class="panel no-print"><h3>Report Filters</h3><div class="grid"><div><label>REPORT TYPE</label><select id="rType" onchange="renderReport()"><option value="">All Beneficiaries</option><option value="Paid Back Report">Paid Back Report</option><option value="Outstanding Report">Outstanding Report</option><option value="Deceased Beneficiaries">Deceased Beneficiaries</option></select></div><div><label>PDM Status</label><select id="rStatus" onchange="renderReport()"><option value="">All</option><option>Got PDM Funds</option><option>Applicant</option><option>Not Yet</option></select></div><div><label>Financial Year</label><input id="rFY" placeholder="2026/27" oninput="renderReport()"></div><div><label>From Funding Date</label><input id="rFrom" type="date" onchange="renderReport()"></div><div><label>To Funding Date</label><input id="rTo" type="date" onchange="renderReport()"></div><div><label>Search Name / NIN / Village / Enterprise</label><input id="rSearch" oninput="renderReport()"></div></div><button class="action" onclick="renderReport()">APPLY FILTER</button><button class="action secondary" onclick="printFilteredReport()">PRINT FILTERED / SAVE AS PDF</button><button class="action gold" onclick="exportFilteredExcel()">EXPORT FILTERED TO EXCEL</button><button class="action gold" onclick="exportFilteredPDF()">EXPORT PDF</button><button class="action" onclick="exportFilteredCSV()">EXPORT CSV</button></div><div class="panel"><h3 id="reportHeading">ALL BENEFICIARIES REPORT</h3><div id="reportSummary" class="notice"></div><div class="table-wrap"><table><thead><tr><th>MEASURE</th><th>TOTAL</th><th>MALE</th><th>FEMALE</th></tr></thead><tbody id="reportCrossSummary"></tbody></table></div><div class="table-wrap"><table><thead><tr><th>AGE GROUP</th><th>COUNT</th><th>MALE</th><th>FEMALE</th><th>DISABILITY YES</th><th>GOT PDM FUNDS</th></tr></thead><tbody id="reportAgeSummary"></tbody></table></div></div><div class="panel table-wrap"><h3 class="print-title" id="reportPrintHeading">SSAMBWE NDEJJE TOWNCOUNCIL - PDM SACCO REPORT</h3><table><thead><tr><th>NAME</th><th>NIN</th><th>GENDER</th><th>AGE</th><th>AGE GROUP</th><th>DISABILITY</th><th>MEMBER STATUS</th><th>SUB COUNTY</th><th>PARISH</th><th>VILLAGE</th><th>ENTERPRISE</th><th>ENTERPRISE GROUP</th><th>WENDI A/C NO.</th><th>AMOUNT</th><th>FINANCIAL YEAR</th><th>PDM STATUS</th><th>PDM AMOUNT</th><th>PDM FUNDING DATE</th><th>AMOUNT PAID BACK</th><th>OUTSTANDING</th><th>BIRTH YEAR</th></tr></thead><tbody id="reportTable"></tbody></table></div></section>
@@ -77,7 +91,7 @@ function saveData(){localStorage.setItem(KEY,JSON.stringify(people))}function mo
  if(id==='dashboard'||id==='analysis')refresh();
  if(id==='register')toggleFunding();
  if(id==='pdm')renderBulkList();
- if(id==='repaymentCentre'){repayToday();repayRenderOptions();}
+ if(id==='repaymentCentre'){repayToday();repayRenderOptions();repayPopulateReportMembers();}
  if(id==='reports')renderReport();
 }function ageGroup(age){age=Number(age);if(!Number.isFinite(age)||age<0)return'';if(age>=settings.yMin&&age<=settings.yMax)return'Youth';if(age>=settings.aMin&&age<=settings.aMax)return'Adult';if(age>=settings.eMin)return'Elderly';return'Below Youth'}function calcAge(){let y=Number(document.getElementById('birthYear').value);let age=y?new Date().getFullYear()-y:'';document.getElementById('age').value=age;document.getElementById('ageGroup').value=ageGroup(age)}function deriveNIN(){let v=document.getElementById('nin').value.trim().toUpperCase(),m=v.match(/^C([MF])(\d{2})/);if(!m)return;document.getElementById('gender').value=m[1]==='M'?'Male':'Female';let yy=Number(m[2]);document.getElementById('birthYear').value=yy<=26?settings.lowYear+yy:settings.highYear+(yy-27);calcAge()}function toggleFunding(){let s=document.getElementById('pdmStatus').value;let editing=!!editId,old=people.find(x=>x.id===editId);document.getElementById('fundAmountBox').classList.toggle('hidden',s!=='Got PDM Funds');document.getElementById('fundDateBox').classList.toggle('hidden',s!=='Got PDM Funds');document.getElementById('paidBox').classList.toggle('hidden',s!=='Got PDM Funds');let pa=document.getElementById('pdmAmount'),amt=document.getElementById('amount');pa.readOnly=true;amt.readOnly=true;if(s==='Got PDM Funds'&&(!editing||!old||old.pdmStatus!=='Got PDM Funds')){pa.value=FIXED_PDM_AMOUNT;amt.value=FIXED_TOTAL_AMOUNT}}
 function totalDue(p){let principal=Number(p.pdmAmount||0);return principal+principal*Number(settings.pRate||0)/100*Number(settings.pYears||0)}function paid(p){return Math.min(Number(p.paidBack||0),totalDue(p))}function balance(p){return Math.max(0,totalDue(p)-paid(p))}
@@ -607,28 +621,28 @@ async function repayLoadHistory(){
  }catch(e){if(body)body.innerHTML='<tr><td colspan="6">'+esc(friendlyCloudError(e))+'</td></tr>';if(summary)summary.textContent='Could not load payment history.';}
 }
 async function repaySubmit(){
- const p=repaySelected(), amount=Number(document.getElementById('repayAmount')?.value||0), date=document.getElementById('repayDate')?.value, receipt=(document.getElementById('repayReceipt')?.value||'').trim(), notes=(document.getElementById('repayNotes')?.value||'').trim(), msg=document.getElementById('repayMessage'), btn=document.getElementById('repaySaveBtn');
+ const p=repaySelected(), amount=Number(document.getElementById('repayAmount')?.value||0), date=document.getElementById('repayDate')?.value, notes=(document.getElementById('repayNotes')?.value||'').trim(), msg=document.getElementById('repayMessage'), btn=document.getElementById('repaySaveBtn');
  if(!cloudUser||!sb)return alert('Please sign in to the cloud system first.');
  if(!['SUPERVISOR','DATA ENTRY'].includes(roleName()))return alert('Only the SUPERVISOR or DATA ENTRY role can record repayments.');
  if(!p)return alert('Select a member who got PDM funds.');
  if(!(amount>0)||!Number.isFinite(amount))return alert('Enter a valid repayment amount greater than zero.');
  if(amount>balance(p)+0.005)return alert('The amount is greater than the member’s current outstanding balance.');
  if(!date)return alert('Enter the payment date.');
- if(!receipt)return alert('Enter a unique receipt/reference number.');
- if(!confirm('Record '+money(amount)+' for '+p.name+' under receipt '+receipt+'? This will update the shared cloud balance.'))return;
+ if(!confirm('Record '+money(amount)+' for '+p.name+'? The system will generate a unique receipt automatically and update the shared cloud balance.'))return;
  const requestId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():null;
  if(!requestId)return alert('Your browser cannot create a secure submission reference. Please use an updated browser over HTTPS.');
  if(btn)btn.disabled=true;if(msg)msg.textContent='Saving repayment securely to the cloud…';
  try{
-  const {data,error}=await sb.rpc('pdm_record_repayment',{p_beneficiary_id:p.cloudId,p_amount:amount,p_payment_date:date,p_receipt_no:receipt,p_notes:notes||null,p_client_request_id:requestId});
+  const {data,error}=await sb.rpc('pdm_record_repayment',{p_beneficiary_id:p.cloudId,p_amount:amount,p_payment_date:date,p_receipt_no:null,p_notes:notes||null,p_client_request_id:requestId});
   if(error)throw error;
   const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();refresh();
   const updated=people.find(x=>String(x.cloudId)===String(p.cloudId))||p;
-  repayLastReceipt={member:updated.name,nin:updated.nin,amount,date,receipt,notes,paidBack:updated.paidBack,balance:balance(updated),recordedBy:cloudProfile?.full_name||cloudUser.email};
-  document.getElementById('repayAmount').value='';document.getElementById('repayReceipt').value='';document.getElementById('repayNotes').value='';
+  const generatedReceipt=data?.receipt_no||'PDM-RECEIPT-'+(data?.payment_id||requestId);
+  repayLastReceipt={member:updated.name,nin:updated.nin,amount,date,receipt:generatedReceipt,notes,paidBack:updated.paidBack,balance:balance(updated),recordedBy:cloudProfile?.full_name||cloudUser.email};
+  document.getElementById('repayAmount').value='';document.getElementById('repayReceipt').value='Generated automatically after saving';document.getElementById('repayNotes').value='';
   repayRenderOptions();document.getElementById('repayMember').value=String(updated.cloudId);repayMemberChanged(false);
   await repayLoadHistory();
-  if(msg)msg.textContent='Repayment saved. New cumulative paid back: '+money(updated.paidBack)+'. Outstanding balance: '+money(balance(updated))+'.';
+  if(msg)msg.textContent='Repayment saved. System receipt: '+generatedReceipt+'. New cumulative paid back: '+money(updated.paidBack)+'. Outstanding balance: '+money(balance(updated))+'.';
   if(confirm('Repayment saved and synced. Print the receipt now?'))repayPrintReceipt();
  }catch(e){if(msg)msg.textContent='Repayment was not confirmed: '+friendlyCloudError(e);alert('Repayment was not confirmed: '+friendlyCloudError(e));}
  finally{repayPreview();}
@@ -644,5 +658,45 @@ function repayPrintHistory(){
  const rows=[...document.querySelectorAll('#repayHistoryRows tr')].map(tr=>tr.innerText);
  const w=window.open('','_blank','width=1000,height=760');if(!w)return alert('Please allow pop-ups to print.');
  w.document.write('<!doctype html><html><head><title>Repayment History</title><style>body{font:14px Arial;margin:28px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:8px;text-align:left}</style></head><body><h2>SSAMBWE NDEJJE TOWNCOUNCIL — PDM REPAYMENT HISTORY</h2><p>Member: '+esc(p.name)+' | NIN: '+esc(p.nin||'Not recorded')+'</p>'+document.querySelector('#repaymentCentre .table-wrap table').outerHTML+'<p>Current paid back: '+esc(money(paid(p)))+' | Outstanding: '+esc(money(balance(p)))+'</p><script>window.onload=()=>window.print();<\/script></body></html>');w.document.close();
+}
+
+let repayReportRowsCache=[];
+function repayPopulateReportMembers(){
+ const el=document.getElementById('repayReportMember');if(!el)return;
+ const previous=el.value;
+ const rows=(people||[]).filter(p=>p.cloudId).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+ el.innerHTML='<option value="">All members</option>'+rows.map(p=>'<option value="'+esc(p.cloudId)+'">'+esc(p.name)+' — '+esc(p.nin||'No NIN')+'</option>').join('');
+ if(rows.some(p=>String(p.cloudId)===previous))el.value=previous;
+}
+async function repayLoadReport(){
+ const body=document.getElementById('repayReportRows'),summary=document.getElementById('repayReportSummary');
+ if(!cloudUser||!sb){if(summary)summary.textContent='Sign in to view shared repayment reports.';return;}
+ const memberId=document.getElementById('repayReportMember')?.value||'',from=document.getElementById('repayReportFrom')?.value||'',to=document.getElementById('repayReportTo')?.value||'';
+ if(from&&to&&from>to){alert('The start date must be on or before the end date.');return;}
+ if(summary)summary.textContent='Loading repayment report…';
+ try{
+  let query=sb.from('pdm_repayments').select('id,beneficiary_id,amount,payment_date,receipt_no,notes,received_by_name,created_at').order('payment_date',{ascending:false}).order('created_at',{ascending:false});
+  if(memberId)query=query.eq('beneficiary_id',memberId);
+  if(from)query=query.gte('payment_date',from);
+  if(to)query=query.lte('payment_date',to);
+  const {data,error}=await query;if(error)throw error;
+  const lookup=new Map((people||[]).map(p=>[String(p.cloudId),p]));
+  repayReportRowsCache=(data||[]).map(r=>{const p=lookup.get(String(r.beneficiary_id))||{};return {...r,member_name:p.name||'Member record unavailable',nin:p.nin||''};});
+  if(body)body.innerHTML=repayReportRowsCache.length?repayReportRowsCache.map(r=>'<tr><td>'+esc(r.member_name)+'</td><td>'+esc(r.nin)+'</td><td>'+esc(r.payment_date||'')+'</td><td>'+esc(r.receipt_no||'')+'</td><td>'+esc(money(r.amount))+'</td><td>'+esc(r.notes||'')+'</td><td>'+esc(r.received_by_name||'')+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleString():'')+'</td></tr>').join(''):'<tr><td colspan="8">No repayments match these filters.</td></tr>';
+  if(summary)summary.textContent='Payments: '+repayReportRowsCache.length+' • Total received: '+money(repayReportRowsCache.reduce((a,r)=>a+Number(r.amount||0),0))+' • '+(memberId?'Selected member':'All members')+(from?' • From '+from:'')+(to?' • To '+to:'');
+ }catch(e){if(summary)summary.textContent='Could not load report: '+friendlyCloudError(e);if(body)body.innerHTML='<tr><td colspan="8">Unable to load report.</td></tr>';}
+}
+function repayExportReport(){
+ if(!repayReportRowsCache.length)return alert('Generate a repayment report first.');
+ const cols=['Member','NIN','Payment Date','Receipt / Reference','Amount (UGX)','Notes','Received By','Recorded At'];
+ const lines=[cols,...repayReportRowsCache.map(r=>[r.member_name,r.nin,r.payment_date,r.receipt_no,r.amount,r.notes,r.received_by_name,r.created_at])].map(row=>row.map(csvCell).join(',')).join('\r\n');
+ downloadBlob(new Blob(['\ufeff'+lines],{type:'text/csv;charset=utf-8;'}),'PDM_Members_Repayment_Report_'+new Date().toISOString().slice(0,10)+'.csv');
+}
+function repayPrintReport(){
+ if(!repayReportRowsCache.length)return alert('Generate a repayment report first.');
+ const rows=repayReportRowsCache.map(r=>'<tr><td>'+esc(r.member_name)+'</td><td>'+esc(r.nin)+'</td><td>'+esc(r.payment_date||'')+'</td><td>'+esc(r.receipt_no||'')+'</td><td>'+esc(money(r.amount))+'</td><td>'+esc(r.notes||'')+'</td><td>'+esc(r.received_by_name||'')+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleString():'')+'</td></tr>').join('');
+ const total=repayReportRowsCache.reduce((a,r)=>a+Number(r.amount||0),0);
+ const w=window.open('','_blank','width=1200,height=800');if(!w)return alert('Please allow pop-ups to print the report.');
+ w.document.write('<!doctype html><html><head><title>PDM Members Repayment Report</title><style>body{font:12px Arial;margin:24px}h1,h2{text-align:center}table{width:100%;border-collapse:collapse}th,td{border:1px solid #888;padding:6px;text-align:left}th{background:#eee}.total{font-size:16px;font-weight:bold}@media print{body{margin:10mm}}</style></head><body><h1>SSAMBWE NDEJJE TOWNCOUNCIL</h1><h2>PDM SACCO — MEMBERS REPAYMENT REPORT</h2><p>Generated: '+esc(new Date().toLocaleString())+'</p><p>Records: '+repayReportRowsCache.length+' | Total received: <b>'+esc(money(total))+'</b></p><table><thead><tr><th>Member</th><th>NIN</th><th>Date</th><th>Receipt</th><th>Amount</th><th>Notes</th><th>Received By</th><th>Recorded At</th></tr></thead><tbody>'+rows+'</tbody></table><script>window.onload=()=>window.print();<\\/script></body></html>');w.document.close();
 }
 </script></html>
