@@ -64,7 +64,7 @@
 <div><label>To payment date</label><input id="repayReportTo" type="date"></div>
 </div>
 <button class="action" onclick="repayLoadReport()">GENERATE REPORT</button>
-<button class="action secondary" onclick="repayExportReport()">EXPORT REPORT (CSV / EXCEL)</button>
+<button class="action secondary" onclick="repayExportReport()">EXPORT REPORT (EXCEL-COMPATIBLE CSV)</button>
 <button class="action secondary" onclick="repayPrintReport()">PRINT REPORT</button>
 <div id="repayReportSummary" class="notice">Generate a report to view recorded instalments.</div>
 </div>
@@ -675,13 +675,17 @@ async function repayLoadReport(){
  if(from&&to&&from>to){alert('The start date must be on or before the end date.');return;}
  if(summary)summary.textContent='Loading repayment report…';
  try{
-  let query=sb.from('pdm_repayments').select('id,beneficiary_id,amount,payment_date,receipt_no,notes,received_by_name,created_at').order('payment_date',{ascending:false}).order('created_at',{ascending:false});
-  if(memberId)query=query.eq('beneficiary_id',memberId);
-  if(from)query=query.gte('payment_date',from);
-  if(to)query=query.lte('payment_date',to);
-  const {data,error}=await query;if(error)throw error;
+  const allData=[];let start=0;
+  while(true){
+   let query=sb.from('pdm_repayments').select('id,beneficiary_id,amount,payment_date,receipt_no,notes,received_by_name,created_at').order('payment_date',{ascending:false}).order('created_at',{ascending:false}).range(start,start+999);
+   if(memberId)query=query.eq('beneficiary_id',memberId);
+   if(from)query=query.gte('payment_date',from);
+   if(to)query=query.lte('payment_date',to);
+   const {data,error}=await query;if(error)throw error;
+   allData.push(...(data||[]));if(!data||data.length<1000)break;start+=1000;
+  }
   const lookup=new Map((people||[]).map(p=>[String(p.cloudId),p]));
-  repayReportRowsCache=(data||[]).map(r=>{const p=lookup.get(String(r.beneficiary_id))||{};return {...r,member_name:p.name||'Member record unavailable',nin:p.nin||''};});
+  repayReportRowsCache=allData.map(r=>{const p=lookup.get(String(r.beneficiary_id))||{};return {...r,member_name:p.name||'Member record unavailable',nin:p.nin||''};});
   if(body)body.innerHTML=repayReportRowsCache.length?repayReportRowsCache.map(r=>'<tr><td>'+esc(r.member_name)+'</td><td>'+esc(r.nin)+'</td><td>'+esc(r.payment_date||'')+'</td><td>'+esc(r.receipt_no||'')+'</td><td>'+esc(money(r.amount))+'</td><td>'+esc(r.notes||'')+'</td><td>'+esc(r.received_by_name||'')+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleString():'')+'</td></tr>').join(''):'<tr><td colspan="8">No repayments match these filters.</td></tr>';
   if(summary)summary.textContent='Payments: '+repayReportRowsCache.length+' • Total received: '+money(repayReportRowsCache.reduce((a,r)=>a+Number(r.amount||0),0))+' • '+(memberId?'Selected member':'All members')+(from?' • From '+from:'')+(to?' • To '+to:'');
  }catch(e){if(summary)summary.textContent='Could not load report: '+friendlyCloudError(e);if(body)body.innerHTML='<tr><td colspan="8">Unable to load report.</td></tr>';}
