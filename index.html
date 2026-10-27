@@ -54,7 +54,7 @@
 <div id="repayMessage" class="small" role="status"></div>
 </div>
 <div class="panel table-wrap"><h3>Selected Member’s Repayment History</h3><div id="repayHistorySummary" class="notice">Select a funded member to view payment history.</div>
-<table><thead><tr><th>PAYMENT DATE</th><th>RECEIPT / REFERENCE</th><th>AMOUNT RECEIVED</th><th>NOTES</th><th>RECORDED AT</th></tr></thead><tbody id="repayHistoryRows"><tr><td colspan="5">Select a funded member.</td></tr></tbody></table>
+<table><thead><tr><th>PAYMENT DATE</th><th>RECEIPT / REFERENCE</th><th>AMOUNT RECEIVED</th><th>NOTES</th><th>RECEIVED BY</th><th>RECORDED AT</th></tr></thead><tbody id="repayHistoryRows"><tr><td colspan="6">Select a funded member.</td></tr></tbody></table>
 <button class="action secondary no-print" onclick="repayPrintHistory()">PRINT PAYMENT HISTORY</button></div>
 </section>
 <section id="analysis" class="section"><h2>Analysis</h2><div class="panel"><div class="grid"><div><b>Disability YES:</b> <span id="aDis">0</span></div><div><b>Total Amount:</b> <span id="aAmt">UGX 0</span></div><div><b>Average Age:</b> <span id="aAge">0</span></div><div><b>PDM Disbursed:</b> <span id="aPdm">UGX 0</span></div><div><b>Paid Back:</b> <span id="aPaid">UGX 0</span></div><div><b>Outstanding:</b> <span id="aBalance">UGX 0</span></div></div></div><div class="panel table-wrap"><h3>Breakdown by Age Group</h3><table><thead><tr><th>AGE GROUP</th><th>COUNT</th><th>TOTAL AMOUNT</th><th>DISABILITY</th><th>PDM FUNDED</th><th>PAID BACK</th><th>OUTSTANDING</th></tr></thead><tbody id="ageAnalysis"></tbody></table></div></section>
@@ -594,16 +594,16 @@ function repayPreview(){
 }
 async function repayLoadHistory(){
  const p=repaySelected(), body=document.getElementById('repayHistoryRows'), summary=document.getElementById('repayHistorySummary');
- if(!p){if(body)body.innerHTML='<tr><td colspan="5">Select a funded member.</td></tr>';if(summary)summary.textContent='Select a funded member to view payment history.';return;}
+ if(!p){if(body)body.innerHTML='<tr><td colspan="6">Select a funded member.</td></tr>';if(summary)summary.textContent='Select a funded member to view payment history.';return;}
  if(!cloudUser||!sb){if(summary)summary.textContent='Sign in to view shared payment history.';return;}
  try{
   if(summary)summary.textContent='Loading payment history…';
-  const {data,error}=await sb.from('pdm_repayments').select('id,amount,payment_date,receipt_no,notes,created_at,received_by').eq('beneficiary_id',p.cloudId).order('payment_date',{ascending:false}).order('created_at',{ascending:false});
+  const {data,error}=await sb.from('pdm_repayments').select('id,amount,payment_date,receipt_no,notes,created_at,received_by_name').eq('beneficiary_id',p.cloudId).order('payment_date',{ascending:false}).order('created_at',{ascending:false});
   if(error)throw error;
   const rows=data||[];
-  if(body)body.innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.payment_date||'')+'</td><td>'+esc(r.receipt_no||'')+'</td><td>'+money(r.amount)+'</td><td>'+esc(r.notes||'')+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleString():'')+'</td></tr>').join(''):'<tr><td colspan="5">No instalments recorded for this member yet.</td></tr>';
+  if(body)body.innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.payment_date||'')+'</td><td>'+esc(r.receipt_no||'')+'</td><td>'+money(r.amount)+'</td><td>'+esc(r.notes||'')+'</td><td>'+esc(r.received_by_name||'')+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleString():'')+'</td></tr>').join(''):'<tr><td colspan="6">No instalments recorded for this member yet.</td></tr>';
   if(summary)summary.textContent=p.name+' • '+rows.length+' instalment(s) • Ledger total: '+money(rows.reduce((a,r)=>a+Number(r.amount||0),0))+' • Current outstanding: '+money(balance(p));
- }catch(e){if(body)body.innerHTML='<tr><td colspan="5">'+esc(friendlyCloudError(e))+'</td></tr>';if(summary)summary.textContent='Could not load payment history.';}
+ }catch(e){if(body)body.innerHTML='<tr><td colspan="6">'+esc(friendlyCloudError(e))+'</td></tr>';if(summary)summary.textContent='Could not load payment history.';}
 }
 async function repaySubmit(){
  const p=repaySelected(), amount=Number(document.getElementById('repayAmount')?.value||0), date=document.getElementById('repayDate')?.value, receipt=(document.getElementById('repayReceipt')?.value||'').trim(), notes=(document.getElementById('repayNotes')?.value||'').trim(), msg=document.getElementById('repayMessage'), btn=document.getElementById('repaySaveBtn');
