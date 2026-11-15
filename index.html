@@ -54,8 +54,8 @@
 <div id="repayMessage" class="small" role="status"></div>
 </div>
 <div class="panel table-wrap"><h3>Selected Member’s Repayment History</h3><div id="repayHistorySummary" class="notice">Select a funded member to view payment history.</div>
-<table><thead><tr><th>PAYMENT DATE</th><th>RECEIPT / REFERENCE</th><th>AMOUNT RECEIVED</th><th>NOTES</th><th>RECEIVED BY</th><th>RECORDED AT</th></tr></thead><tbody id="repayHistoryRows"><tr><td colspan="6">Select a funded member.</td></tr></tbody></table>
-<button class="action secondary no-print" onclick="repayPrintHistory()">PRINT PAYMENT HISTORY</button></div>
+<table><thead><tr><th>PAYMENT DATE</th><th>RECEIPT / REFERENCE</th><th>AMOUNT RECEIVED</th><th>NOTES</th><th>RECEIVED BY</th><th>RECORDED AT</th><th>ACTIONS</th></tr></thead><tbody id="repayHistoryRows"><tr><td colspan="6">Select a funded member.</td></tr></tbody></table>
+<button class="action secondary no-print" onclick="repayPrintHistory()">PRINT PAYMENT HISTORY</button></div><div id="repayEditPanel" class="panel no-print" style="display:none;border:2px solid #b7791f"><h3>Correct a Saved Repayment (Supervisor only)</h3><div class="notice">Enter the correct amount/date and a reason. Original details are retained in the audit log; member balances are recalculated automatically.</div><input id="repayEditId" type="hidden"><div class="grid"><div><label>Correct amount (UGX)</label><input id="repayEditAmount" type="number" min="0.01" step="0.01"></div><div><label>Correct payment date</label><input id="repayEditDate" type="date"></div><div style="grid-column:1/-1"><label>Correct notes</label><input id="repayEditNotes" maxlength="500"></div><div style="grid-column:1/-1"><label>Reason for correction (required)</label><input id="repayEditReason" maxlength="500" placeholder="Explain the error and correction"></div></div><button class="action" onclick="repaySaveCorrection()">SAVE CORRECTION</button><button class="action secondary" onclick="repayCancelCorrection()">CANCEL</button><div id="repayEditMessage" class="small" role="status"></div></div>
 <div class="panel no-print">
 <h3>Members’ Repayment Report</h3>
 <div class="grid">
@@ -607,18 +607,74 @@ function repayPreview(){
  const e=document.getElementById('repayBalanceAfter');if(e)e.textContent=money(after);
  const b=document.getElementById('repaySaveBtn');if(b)b.disabled=!cloudUser||!p||!['SUPERVISOR','DATA ENTRY'].includes(roleName())||!(amt>0)||amt>balance(p)+0.005;
 }
+let repayHistoryCache=[];
 async function repayLoadHistory(){
- const p=repaySelected(), body=document.getElementById('repayHistoryRows'), summary=document.getElementById('repayHistorySummary');
- if(!p){if(body)body.innerHTML='<tr><td colspan="6">Select a funded member.</td></tr>';if(summary)summary.textContent='Select a funded member to view payment history.';return;}
+ const p=repaySelected(),body=document.getElementById('repayHistoryRows'),summary=document.getElementById('repayHistorySummary');
+ if(!p){repayHistoryCache=[];if(body)body.innerHTML='<tr><td colspan="7">Select a funded member.</td></tr>';if(summary)summary.textContent='Select a funded member to view payment history.';return;}
  if(!cloudUser||!sb){if(summary)summary.textContent='Sign in to view shared payment history.';return;}
  try{
   if(summary)summary.textContent='Loading payment history…';
-  const {data,error}=await sb.from('pdm_repayments').select('id,amount,payment_date,receipt_no,notes,created_at,received_by_name').eq('beneficiary_id',p.cloudId).order('payment_date',{ascending:false}).order('created_at',{ascending:false});
+  const {data,error}=await sb.from('pdm_repayments').select('id,beneficiary_id,amount,payment_date,receipt_no,notes,created_at,received_by_name').eq('beneficiary_id',p.cloudId).order('payment_date',{ascending:false}).order('created_at',{ascending:false});
   if(error)throw error;
-  const rows=data||[];
-  if(body)body.innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.payment_date||'')+'</td><td>'+esc(r.receipt_no||'')+'</td><td>'+money(r.amount)+'</td><td>'+esc(r.notes||'')+'</td><td>'+esc(r.received_by_name||'')+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleString():'')+'</td></tr>').join(''):'<tr><td colspan="6">No instalments recorded for this member yet.</td></tr>';
+  const rows=data||[];repayHistoryCache=rows;
+  if(body)body.innerHTML=rows.length?rows.map((r,i)=>'<tr><td>'+esc(r.payment_date||'')+'</td><td>'+esc(r.receipt_no||'')+'</td><td>'+money(r.amount)+'</td><td>'+esc(r.notes||'')+'</td><td>'+esc(r.received_by_name||'')+'</td><td>'+esc(r.created_at?new Date(r.created_at).toLocaleString():'')+'</td><td><button class="action secondary" onclick="repayPrintSavedReceipt('+i+')">RECEIPT / PDF</button> '+(roleName()==='SUPERVISOR'?'<button class="action" onclick="repayEditPayment('+i+')">EDIT</button> <button class="action" style="background:#a61b1b" onclick="repayDeletePayment('+i+')">DELETE PAYMENT</button>':'')+'</td></tr>').join(''):'<tr><td colspan="7">No instalments recorded for this member yet.</td></tr>';
   if(summary)summary.textContent=p.name+' • '+rows.length+' instalment(s) • Ledger total: '+money(rows.reduce((a,r)=>a+Number(r.amount||0),0))+' • Current outstanding: '+money(balance(p));
- }catch(e){if(body)body.innerHTML='<tr><td colspan="6">'+esc(friendlyCloudError(e))+'</td></tr>';if(summary)summary.textContent='Could not load payment history.';}
+ }catch(e){if(body)body.innerHTML='<tr><td colspan="7">'+esc(friendlyCloudError(e))+'</td></tr>';if(summary)summary.textContent='Could not load payment history.';}
+}
+function repayPrintSavedReceipt(index){
+ const r=repayHistoryCache[Number(index)],p=repaySelected();
+ if(!r||!p)return alert('Could not find this saved repayment. Refresh the payment history.');
+ const receipt={member:p.name,nin:p.nin||'',amount:Number(r.amount||0),date:r.payment_date||'',receipt:r.receipt_no||'',notes:r.notes||'',paidBack:paid(p),balance:balance(p),recordedBy:r.received_by_name||'Authorised user'};
+ repayLastReceipt=receipt;repayPrintReceipt();
+}
+function repayEditPayment(index){
+ if(roleName()!=='SUPERVISOR')return alert('Only the SUPERVISOR can correct a saved repayment.');
+ const r=repayHistoryCache[Number(index)];if(!r)return alert('Repayment not found. Refresh the history.');
+ document.getElementById('repayEditId').value=r.id;document.getElementById('repayEditAmount').value=Number(r.amount||0);document.getElementById('repayEditDate').value=r.payment_date||'';document.getElementById('repayEditNotes').value=r.notes||'';document.getElementById('repayEditReason').value='';
+ document.getElementById('repayEditMessage').textContent='Correcting receipt '+(r.receipt_no||'')+'.';
+ const panel=document.getElementById('repayEditPanel');panel.style.display='block';panel.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function repayCancelCorrection(){const panel=document.getElementById('repayEditPanel');if(panel)panel.style.display='none';}
+async function repaySaveCorrection(){
+ if(!cloudUser||!sb)return alert('Please sign in first.');
+ if(roleName()!=='SUPERVISOR')return alert('Only the SUPERVISOR can correct saved repayments.');
+ const id=document.getElementById('repayEditId').value,amount=Number(document.getElementById('repayEditAmount').value),date=document.getElementById('repayEditDate').value,notes=document.getElementById('repayEditNotes').value.trim(),reason=document.getElementById('repayEditReason').value.trim(),msg=document.getElementById('repayEditMessage');
+ if(!id||!(amount>0)||!Number.isFinite(amount)||!date||!reason)return alert('Enter a valid amount, payment date and reason for correction.');
+ if(!confirm('Save this repayment correction? The member balance will be recalculated and original values retained in the audit log.'))return;
+ try{
+  msg.textContent='Saving correction securely…';
+  const {data,error}=await sb.rpc('pdm_correct_repayment',{p_payment_id:id,p_amount:amount,p_payment_date:date,p_notes:notes||null,p_reason:reason});
+  if(error)throw error;
+  const selectedId=document.getElementById('repayMember').value;
+  const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();refresh();
+  repayRenderOptions();document.getElementById('repayMember').value=selectedId;repayMemberChanged(false);
+  await repayLoadHistory();repayCancelCorrection();
+  const message='Correction saved. Receipt reference remains unchanged: '+(data?.receipt_no||'')+'. Updated paid back: '+money(data?.new_paid_back||0)+'. Updated outstanding: '+money(data?.balance||0)+'.';
+  document.getElementById('repayMessage').textContent=message;alert(message);
+ }catch(e){msg.textContent='Correction was not saved: '+friendlyCloudError(e);alert(msg.textContent);}
+}
+async function repayDeletePayment(index){
+ if(!cloudUser||!sb)return alert('Please sign in first.');
+ if(roleName()!=='SUPERVISOR')return alert('Only the SUPERVISOR can delete a saved repayment.');
+ const r=repayHistoryCache[Number(index)];
+ if(!r)return alert('Repayment not found. Refresh the history and try again.');
+ const p=repaySelected();
+ if(!p||String(p.cloudId)!==String(r.beneficiary_id))return alert('The selected beneficiary does not match this repayment. Refresh the history.');
+ const reason=prompt('REQUIRED: Explain why this payment must be deleted. This reason will be kept in the audit log.');
+ if(reason===null)return;
+ if(!reason.trim())return alert('A reason is required. No payment was deleted.');
+ const confirmText='PERMANENTLY DELETE this repayment?\\n\\nBeneficiary: '+p.name+'\\nAmount: '+money(r.amount)+'\\nReceipt: '+(r.receipt_no||'')+'\\nDate: '+(r.payment_date||'')+'\\n\\nThe payment will be removed from active records and the beneficiary balance recalculated. An audit record will be retained.';
+ if(!confirm(confirmText))return;
+ try{
+  const {data,error}=await sb.rpc('pdm_delete_repayment',{p_payment_id:r.id,p_reason:reason.trim()});
+  if(error)throw error;
+  const selectedId=document.getElementById('repayMember').value;
+  const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();refresh();
+  repayRenderOptions();document.getElementById('repayMember').value=selectedId;repayMemberChanged(false);
+  await repayLoadHistory();
+  const message='Payment deleted. Receipt '+(data?.receipt_no||'')+' is retained in the audit log. Updated paid back: '+money(data?.new_paid_back||0)+'. Outstanding: '+money(data?.balance||0)+'.';
+  document.getElementById('repayMessage').textContent=message;alert(message);
+ }catch(e){alert('Payment was not deleted: '+friendlyCloudError(e));}
 }
 async function repaySubmit(){
  const p=repaySelected(), amount=Number(document.getElementById('repayAmount')?.value||0), date=document.getElementById('repayDate')?.value, notes=(document.getElementById('repayNotes')?.value||'').trim(), msg=document.getElementById('repayMessage'), btn=document.getElementById('repaySaveBtn');
