@@ -653,6 +653,39 @@ async function repaySaveCorrection(){
   document.getElementById('repayMessage').textContent=message;alert(message);
  }catch(e){msg.textContent='Correction was not saved: '+friendlyCloudError(e);alert(msg.textContent);}
 }
+async function repaySubmit(){
+ const p=repaySelected(), amount=Number(document.getElementById('repayAmount')?.value||0), date=document.getElementById('repayDate')?.value, notes=(document.getElementById('repayNotes')?.value||'').trim(), msg=document.getElementById('repayMessage'), btn=document.getElementById('repaySaveBtn');
+ if(!cloudUser||!sb)return alert('Please sign in to the cloud system first.');
+ if(!['SUPERVISOR','DATA ENTRY'].includes(roleName()))return alert('Only the SUPERVISOR or DATA ENTRY role can record repayments.');
+ if(!p)return alert('Select a member who got PDM funds.');
+ if(!(amount>0)||!Number.isFinite(amount))return alert('Enter a valid repayment amount greater than zero.');
+ if(amount>balance(p)+0.005)return alert('The amount is greater than the member’s current outstanding balance.');
+ if(!date)return alert('Enter the payment date.');
+ if(!confirm('Record '+money(amount)+' for '+p.name+'? The system will generate a unique receipt automatically and update the shared cloud balance.'))return;
+ const requestId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():null;
+ if(!requestId)return alert('Your browser cannot create a secure submission reference. Please use an updated browser over HTTPS.');
+ if(btn)btn.disabled=true;if(msg)msg.textContent='Saving repayment securely to the cloud…';
+ try{
+  const {data,error}=await sb.rpc('pdm_record_repayment',{p_beneficiary_id:p.cloudId,p_amount:amount,p_payment_date:date,p_receipt_no:null,p_notes:notes||null,p_client_request_id:requestId});
+  if(error)throw error;
+  const rows=await cloudReloadRows();people=rows.map(cloudMapRow);saveData();refresh();
+  const updated=people.find(x=>String(x.cloudId)===String(p.cloudId))||p;
+  const generatedReceipt=data?.receipt_no||'PDM-RECEIPT-'+(data?.payment_id||requestId);
+  repayLastReceipt={member:updated.name,nin:updated.nin,amount,date,receipt:generatedReceipt,notes,paidBack:updated.paidBack,balance:balance(updated),recordedBy:cloudProfile?.full_name||cloudUser.email};
+  document.getElementById('repayAmount').value='';document.getElementById('repayReceipt').value='Generated automatically after saving';document.getElementById('repayNotes').value='';
+  repayRenderOptions();document.getElementById('repayMember').value=String(updated.cloudId);repayMemberChanged(false);
+  await repayLoadHistory();
+  if(msg)msg.textContent='Repayment saved. System receipt: '+generatedReceipt+'. New cumulative paid back: '+money(updated.paidBack)+'. Outstanding balance: '+money(balance(updated))+'.';
+  if(confirm('Repayment saved and synced. Print the receipt now?'))repayPrintReceipt();
+ }catch(e){if(msg)msg.textContent='Repayment was not confirmed: '+friendlyCloudError(e);alert('Repayment was not confirmed: '+friendlyCloudError(e));}
+ finally{repayPreview();}
+}
+function repayPrintReceipt(){
+ const r=repayLastReceipt;if(!r)return alert('Record a repayment first; its receipt details will appear here.');
+ const w=window.open('','_blank','width=760,height=760');if(!w)return alert('Please allow pop-ups to print the receipt.');
+ w.document.write('<!doctype html><html><head><title>PDM Repayment Receipt</title><style>body{font:16px Arial,sans-serif;margin:36px;color:#111}h1,h2{text-align:center}table{width:100%;border-collapse:collapse;margin-top:24px}td,th{border:1px solid #aaa;padding:10px;text-align:left}.total{font-size:22px;font-weight:bold}.foot{margin-top:36px}</style></head><body><h1>SSAMBWE NDEJJE TOWNCOUNCIL</h1><h2>PDM SACCO — REPAYMENT RECEIPT</h2><p><b>Receipt / Reference:</b> '+esc(r.receipt)+'</p><table><tr><th>Member</th><td>'+esc(r.member)+'</td></tr><tr><th>NIN</th><td>'+esc(r.nin||'Not recorded')+'</td></tr><tr><th>Payment date</th><td>'+esc(r.date)+'</td></tr><tr><th>Amount received</th><td class="total">'+esc(money(r.amount))+'</td></tr><tr><th>Notes</th><td>'+esc(r.notes||'—')+'</td></tr><tr><th>Cumulative paid back</th><td>'+esc(money(r.paidBack))+'</td></tr><tr><th>Outstanding balance</th><td>'+esc(money(r.balance))+'</td></tr><tr><th>Received / recorded by</th><td>'+esc(r.recordedBy||'Authorised user')+'</td></tr></table><p class="foot">Keep this receipt for your records. This receipt confirms the instalment recorded in the SACCO system.</p><script>window.onload=()=>window.print();<\/script></body></html>');
+ w.document.close();
+}
 function repayPrintHistory(){
  const p=repaySelected();if(!p)return alert('Select a member first.');
  const rows=[...document.querySelectorAll('#repayHistoryRows tr')].map(tr=>tr.innerText);
